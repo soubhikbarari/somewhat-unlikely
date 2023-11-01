@@ -1,0 +1,1654 @@
+
+R version 3.1.2 (2014-10-31) -- "Pumpkin Helmet"
+Copyright (C) 2014 The R Foundation for Statistical Computing
+Platform: x86_64-redhat-linux-gnu (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> ########
+> ### Replication code for "Geography, Uncertainty, and Polarization"
+> ########
+> 
+> # Change the following to whatever your local path is
+> #setwd("Geography/Replication")
+> 
+> # Flag for greyscale
+> greyscale = T
+> 
+> # Load replication 
+> load(file="merged public and legislators.Rdata")
+> load(file="state polarization.Rdata")
+> 
+> # load required libraries
+> 
+> library(ggplot2)
+> library(reshape2)
+> library(stringr)
+> library(plyr)
+> library(AICcmodavg)
+Warning message:
+replacing previous import by ‘splines::splineDesign’ when loading ‘VGAM’ 
+> library(Matching)
+Loading required package: MASS
+## 
+##  Matching (Version 4.9-2, Build Date: 2015-12-25)
+##  See http://sekhon.berkeley.edu/matching for additional documentation.
+##  Please cite software as:
+##   Jasjeet S. Sekhon. 2011. ``Multivariate and Propensity Score Matching
+##   Software with Automated Balance Optimization: The Matching package for R.''
+##   Journal of Statistical Software, 42(7): 1-52. 
+##
+
+> library(xtable)
+> library(foreign)
+> library(stargazer)
+
+Please cite as: 
+
+ Hlavac, Marek (2014). stargazer: LaTeX code and ASCII text for well-formatted regression and summary statistics tables.
+ R package version 5.1. http://CRAN.R-project.org/package=stargazer 
+
+> library(arm)
+Loading required package: Matrix
+Loading required package: lme4
+Loading required package: Rcpp
+
+arm (Version 1.7-07, built: 2014-8-27)
+
+Working directory is /home/chris/tmp
+
+
+Attaching package: ‘arm’
+
+The following object is masked from ‘package:xtable’:
+
+    display
+
+> # important functions
+> 
+> ggs <- function (filename,width=8,height=5,types=c("pdf"),save=TRUE,subfolder=FALSE,dropbox=NA) {
++   
++   if (save) {
++     for (filetype in types) {
++       if (subfolder) { folderpath = str_c(filetype,"/") } else { folderpath="" }
++       filen = str_c("Plots/",folderpath,filename,".",filetype)
++       print(filen)
++       ggsave(file=filen, width=width, height=height) 
++       if (!is.na(dropbox)) {
++         filen = str_c("Plots/",folderpath,filename,".",filetype)
++         print(filen)
++         ggsave(file=filen, width=width, height=height)
++       }
++     }    
++   }
++   
++ }
+> 
+> plusminus <- function (x, n.sd = 0.5) {
++   return(c((mean(x,na.rm=T)-n.sd*sd(x,na.rm=T)),(mean(x,na.rm=T)+n.sd*sd(x,na.rm=T))))
++ }
+> 
+> 
+> 
+> ########################
+> ######################
+> ### Models for State Legislature
+> #######################
+> ########################
+> 
+> ###################
+> # Figure 1 and C.1: density plots
+> 
+> for (chamb in c("s","h")) {
++   dist.measure = ifelse(chamb=="s","median_citizens","median_allsample")
++   legis.melt = melt(legis.m[[chamb]],id=c("sld","year"),c("pred.np",dist.measure))
++   levels(legis.melt$variable)=c("Legislators","District Medians")
++   p=ggplot(legis.melt, aes(x=value)) + geom_density(alpha=.5, fill="gray") + guides(fill=FALSE) +
++     theme_bw() +
++     labs(list(x="Ideology",y=NULL)) + facet_wrap(~variable)
++   p
++   ggs(str_c("Density/legislators_individuals_",chamb),subfolder=T,width=8,height=4.5)
++ }
+[1] "Plots/pdf/Density/legislators_individuals_s.pdf"
+[1] "Plots/pdf/Density/legislators_individuals_h.pdf"
+Warning messages:
+1: Removed 584 rows containing non-finite values (stat_density). 
+2: Removed 1381 rows containing non-finite values (stat_density). 
+> 
+> ##################
+> # Figure 2 and C.2: Aggregates by state
+> 
+> 
+> st.avg = ddply(st.data,.(st),summarize,comp.diffs=mean(comp.diffs,na.rm=T))
+> 
+> for (chamb in c("s","h")) {
++   
++   st.het = ddply(subset(sld_chris[[chamb]],!is.na(abb)),.(abb),summarize,
++                  within_citizens=mean(heterogeneity_allsample,na.rm=T),
++                  between_citizen = sd(mrp_estimate,na.rm=T))
++   
++   print(st.het)
++   
++   st.het = plyr::rename(st.het,c("abb"="st"))
++   
++   within.melt = melt(st.het,id="st",c("within_citizens"))
++   between.melt = melt(st.het,id="st",c("between_citizen"))
++   
++   st.m.within = merge(st.avg,within.melt,by="st")
++   st.m.between = merge(st.avg,between.melt,by="st")
++   
++   st.m.within = subset(st.m.within,st!="HI")
++   
++   within.cor = cor.test(st.m.within$comp.diffs, st.m.within$value) 
++   between.cor = cor.test(st.m.between$comp.diffs, st.m.between$value)
++   
++   print(within.cor)
++   print(between.cor)
++   
++   data.labels <- data.frame(label = str_c("r = ",round(within.cor$estimate,2)))
++   x.loc = ifelse(chamb=="s", 1.22, 1.14)
++   
++   
++   # each one separately
++   p=ggplot(st.m.within, aes(x=value,y=comp.diffs,label=st)) + geom_text(alpha=.9, size=4.5) +  geom_smooth(method=lm,se=F, colour="black") + theme_bw() +
++     theme(axis.title.x = element_text(size=22), axis.text.x  = element_text(size=16), axis.title.y = element_text(size=22), axis.text.y  = element_text(size=16), title = element_text(size=18)) +
++     geom_text(data=data.labels, aes(x = x.loc, y = 2.75, label = label),size=10,show.legend=F) +  
++     labs(list(x="Average Within District Ideological Polarization",y="Average Legislative Polarization",fill="")) # title="Legislative Polarization and Within District Ideological Polarization",
++   
++   p
++   
++   ggs(str_c("Scatter/within_district_polarization_",chamb),subfolder=T,width=11,height=8.5)
++   
++   data.labels <- data.frame(label = str_c("r = ",round(between.cor$estimate,2)))
++   x.loc = ifelse(chamb=="s", 0.11, 0.13)
++   
++   # between
++   p=ggplot(st.m.between, aes(x=value,y=comp.diffs,label=st)) + geom_text(alpha=.9, size=4.5) +  geom_smooth(method=lm,se=F, colour="black") + theme_bw() +
++     theme(axis.title.x = element_text(size=22), axis.text.x  = element_text(size=16), axis.title.y = element_text(size=22), axis.text.y  = element_text(size=16), title = element_text(size=18)) +    #geom_text(aes(x = x.loc, y = 2.75, label = str_c("r = ",round(between.cor$estimate,2))),size=10,show.legend=F) +
++     geom_text(data=data.labels, aes(x = x.loc, y = 2.75, label = label),size=10,show.legend=F) +  
++     labs(list(x="Average Between District Ideological Polarization",y="Average Legislative Polarization",fill="")) # ,title="Legislative Polarization and Between District Ideological Polarization"
++   p
++   ggs(str_c("Scatter/between_district_polarization_",chamb),subfolder=T,width=11,height=8.5)
++ }
+   abb within_citizens between_citizen
+1   AK        1.455778       0.1661711
+2   AL        1.227562       0.2559455
+3   AR        1.248387       0.1998939
+4   AZ        1.384623       0.2096538
+5   CA        1.340000       0.2807367
+6   CO        1.364624       0.2574752
+7   CT        1.290410       0.2090426
+8   DC        1.024927       0.2673464
+9   DE        1.252677       0.1927332
+10  FL        1.312956       0.2338830
+11  GA        1.266361       0.3134046
+12  HI        1.366253       0.1245007
+13  IA        1.322888       0.1950618
+14  ID        1.263185       0.1712570
+15  IL        1.260267       0.3084942
+16  IN        1.264283       0.2408365
+17  KS        1.276820       0.1837203
+18  KY        1.231078       0.1848657
+19  LA        1.239161       0.3102768
+20  MA        1.256683       0.2352998
+21  MD        1.236036       0.3302953
+22  ME        1.332082       0.1618947
+23  MI        1.284734       0.2720838
+24  MN        1.327285       0.2918022
+25  MO        1.296160       0.3319941
+26  MS        1.238355       0.2249629
+27  MT        1.324819       0.1374965
+28  NC        1.280874       0.2168704
+29  ND        1.241744       0.1560146
+30  NE        1.282718       0.2127644
+31  NH        1.329777       0.1019515
+32  NJ        1.262330       0.1844349
+33  NM        1.356135       0.2222419
+34  NV        1.336524       0.1578853
+35  NY        1.216587       0.3123021
+36  OH        1.291653       0.2255641
+37  OK        1.270500       0.1724919
+38  OR        1.401434       0.2645541
+39  PA        1.274413       0.2604328
+40  RI        1.207220       0.2326894
+41  SC        1.276103       0.1837011
+42  SD        1.276537       0.1346409
+43  TN        1.270608       0.2445508
+44  TX        1.309367       0.2541496
+45  UT        1.270689       0.2204828
+46  VA        1.336745       0.2216751
+47  VT        1.266852       0.1238845
+48  WA        1.386314       0.2852660
+49  WI        1.312383       0.2401412
+50  WV        1.217272       0.1186146
+51  WY        1.348906       0.1103777
+
+	Pearson's product-moment correlation
+
+data:  st.m.within$comp.diffs and st.m.within$value
+t = 5.2344, df = 47, p-value = 3.792e-06
+alternative hypothesis: true correlation is not equal to 0
+95 percent confidence interval:
+ 0.3926611 0.7585980
+sample estimates:
+      cor 
+0.6068521 
+
+
+	Pearson's product-moment correlation
+
+data:  st.m.between$comp.diffs and st.m.between$value
+t = 2.0293, df = 48, p-value = 0.04799
+alternative hypothesis: true correlation is not equal to 0
+95 percent confidence interval:
+ 0.002983994 0.518849580
+sample estimates:
+      cor 
+0.2810982 
+
+[1] "Plots/pdf/Scatter/within_district_polarization_s.pdf"
+[1] "Plots/pdf/Scatter/between_district_polarization_s.pdf"
+   abb within_citizens between_citizen
+1   AK        1.434227       0.1864211
+2   AL        1.215477       0.2625810
+3   AR        1.223319       0.2263713
+4   AZ        1.384114       0.2263383
+5   CA        1.331752       0.2848334
+6   CO        1.351296       0.2775696
+7   CT        1.280279       0.2299030
+8   DE        1.257234       0.2080369
+9   FL        1.297656       0.2510280
+10  GA        1.258008       0.3062123
+11  HI        1.310442       0.1373606
+12  IA        1.317231       0.1951735
+13  ID        1.255672       0.1967309
+14  IL        1.250829       0.3127987
+15  IN        1.254392       0.2425457
+16  KS        1.268895       0.1919538
+17  KY        1.223144       0.1885215
+18  LA        1.229732       0.2925859
+19  MA        1.223982       0.2507221
+20  MD        1.251306       0.3206608
+21  ME        1.306294       0.1923250
+22  MI        1.262493       0.2995638
+23  MN        1.317745       0.2800445
+24  MO        1.295057       0.3052877
+25  MS        1.210770       0.2535644
+26  MT        1.310287       0.1657894
+27  NC        1.266700       0.2313050
+28  ND        1.225505       0.1560760
+29  NH        1.283114       0.1626021
+30  NJ        1.260048       0.1838992
+31  NM        1.324317       0.2194655
+32  NV        1.336447       0.1732119
+33  NY        1.200675       0.3168492
+34  OH        1.281444       0.2489940
+35  OK        1.258640       0.1872533
+36  OR        1.396015       0.2747174
+37  PA        1.255349       0.2609390
+38  RI        1.196043       0.2202239
+39  SC        1.261185       0.1837526
+40  SD        1.268385       0.1233472
+41  TN        1.253579       0.2593092
+42  TX        1.285298       0.2470629
+43  UT        1.264618       0.1858135
+44  VA        1.319821       0.2176677
+45  VT        1.132010       0.1886903
+46  WA        1.380920       0.2796739
+47  WI        1.301944       0.2408676
+48  WV        1.202595       0.1397789
+49  WY        1.330626       0.1477087
+
+	Pearson's product-moment correlation
+
+data:  st.m.within$comp.diffs and st.m.within$value
+t = 4.885, df = 46, p-value = 1.292e-05
+alternative hypothesis: true correlation is not equal to 0
+95 percent confidence interval:
+ 0.3601066 0.7448814
+sample estimates:
+      cor 
+0.5844419 
+
+
+	Pearson's product-moment correlation
+
+data:  st.m.between$comp.diffs and st.m.between$value
+t = 2.4503, df = 47, p-value = 0.01805
+alternative hypothesis: true correlation is not equal to 0
+95 percent confidence interval:
+ 0.06115892 0.56435268
+sample estimates:
+      cor 
+0.3365673 
+
+[1] "Plots/pdf/Scatter/within_district_polarization_h.pdf"
+[1] "Plots/pdf/Scatter/between_district_polarization_h.pdf"
+> 
+> ##########
+> ## Figure 3 and C.3: average district ideology and within-district polarization
+> 
+> for (chamb in c("s","h")) {
++   if (chamb == "s") {
++     het_var = "heterogeneity_citizens"
++     legis.melt = melt(legis.m[[chamb]],id=c("sld","year"),c(het_var))    
++   } else {
++     het_var = "heterogeneity_allsample"
++     legis.melt = melt(legis.m[[chamb]],id=c("sld","year"),c(het_var))        
++   }
++   legis.melt = merge(legis.melt,subset(legis.m[[chamb]],select=c(sld,year,pred.np,mrp_estimate,st, party)))
++   
++   p=ggplot(subset(legis.melt,variable==het_var), aes(x=mrp_estimate,y=value)) + 
++     geom_point(alpha=.25) +  geom_smooth(method=loess,se=F,size=1.25,alpha=.25, colour="black") + theme_bw() +
++     theme(axis.title.x = element_text(size=22), axis.text.x  = element_text(size=16), axis.title.y = element_text(size=22), axis.text.y  = element_text(size=16), title = element_text(size=18)) +
++     labs(list(x="Median Citizen Ideology",y="Heterogeneity",fill=""))
++   p
++   ggs(str_c("Scatter/ideology_heterogeneity_",chamb),subfolder=T,width=11,height=8.5)
++   
++ }
+[1] "Plots/pdf/Scatter/ideology_heterogeneity_s.pdf"
+[1] "Plots/pdf/Scatter/ideology_heterogeneity_h.pdf"
+Warning messages:
+1: Removed 616 rows containing missing values (stat_smooth). 
+2: Removed 616 rows containing missing values (geom_point). 
+3: Removed 3476 rows containing missing values (stat_smooth). 
+4: Removed 3476 rows containing missing values (geom_point). 
+> 
+> # Figure 5 and C.4: scatterplot
+> 
+> cols = c("blue4","red4")
+> if(greyscale) {cols = c("gray48","gray22")}
+> cuts = 3
+> shapes = c("triangle","circle")
+> 
+> for (chamb in c("s","h")) {
++   
++   cor.cat = cor.cat.rep = cor.cat.dem = list()
++     
++   # names conflict with arm package
++   legis.m[[chamb]]$cat.het.cit = car::recode(as.integer(cut_number(legis.m[[chamb]]$het, cuts)),"1='First';2='Second';3='Third'")
++   
++   cor.cat[["het.cit"]] = ddply(subset(legis.m[[chamb]],!is.na(cat.het.cit)),"cat.het.cit",function(x) cor(x$pred.np,x$median_allsample))[,2]
++   cor.cat.rep[["het.cit"]] = ddply(subset(legis.m[[chamb]],!is.na(cat.het.cit) & party == "R"),"cat.het.cit",function(x) cor(x$pred.np,x$median_allsample))[,2]
++   cor.cat.dem[["het.cit"]] = ddply(subset(legis.m[[chamb]],!is.na(cat.het.cit) & party == "D"),"cat.het.cit",function(x) cor(x$pred.np,x$median_allsample))[,2]
++   
++   p=ggplot(subset(legis.m[[chamb]],!is.na(cat.het.cit)), aes(x=median_allsample,y=pred.np, color = party, shape=party)) + ylim (-2.25,2.25)  + stat_smooth(method = "loess", linetype=1, se=F, span=0.9) +  geom_point(alpha=.25) + scale_color_manual(values = cols) +
++     theme_bw() + labs(list(y="Legislator Ideology",x="District Opinion",title="",fill="")) + facet_wrap(~cat.het.cit)  + theme(legend.position="none")
++   p
++   ggs(str_c("Scatter/opinion_ideology_",chamb),subfolder=T,width=9,height=4)
++   
++   cor.cat.df = round(sapply(cor.cat,t),2)
++   cor.cat.rep.df = round(sapply(cor.cat.rep,t),2)
++   cor.cat.dem.df = round(sapply(cor.cat.dem,t),2)
++   
++   rownames(cor.cat.df) = rownames(cor.cat.rep.df) = rownames(cor.cat.dem.df)  = c("First Tercile", "Second Tercile", "Third Tercile")
++   
++   print(chamb)
++   print(cor.cat.df)
++   print(cor.cat.rep.df)
++   print(cor.cat.dem.df)
++ 
++ }
+[1] "Plots/pdf/Scatter/opinion_ideology_s.pdf"
+[1] "s"
+               het.cit
+First Tercile     0.75
+Second Tercile    0.65
+Third Tercile     0.56
+               het.cit
+First Tercile     0.52
+Second Tercile    0.45
+Third Tercile     0.36
+               het.cit
+First Tercile     0.72
+Second Tercile    0.61
+Third Tercile     0.40
+[1] "Plots/pdf/Scatter/opinion_ideology_h.pdf"
+[1] "h"
+               het.cit
+First Tercile     0.60
+Second Tercile    0.48
+Third Tercile     0.37
+               het.cit
+First Tercile     0.27
+Second Tercile    0.30
+Third Tercile     0.20
+               het.cit
+First Tercile     0.60
+Second Tercile    0.46
+Third Tercile     0.31
+There were 16 warnings (use warnings() to see them)
+> 
+> #####################
+> # Table 1 & Table C.1: main model - varying intercepts by division, party subsets
+> 
+> mlm.div = list()
+> 
+> mlm.div[["h.r"]]=lmer(pred.np~het+mrp_estimate+(1|division),data=subset(legis.m[["h"]],party=="R"))
+> mlm.div[["h.d"]]=lmer(pred.np~het+mrp_estimate+(1|division),data=subset(legis.m[["h"]],party=="D"))
+> mlm.div[["s.r"]]=lmer(pred.np~het+mrp_estimate+(1|division),data=subset(legis.m[["s"]],party=="R"))
+> mlm.div[["s.d"]]=lmer(pred.np~het+mrp_estimate+(1|division),data=subset(legis.m[["s"]],party=="D"))
+> 
+> lapply(mlm.div,summary)
+$h.r
+Linear mixed model fit by REML ['lmerMod']
+Formula: pred.np ~ het + mrp_estimate + (1 | division)
+   Data: subset(legis.m[["h"]], party == "R")
+
+REML criterion at convergence: 3868.2
+
+Scaled residuals: 
+    Min      1Q  Median      3Q     Max 
+-5.1581 -0.6189  0.0068  0.5989  6.6749 
+
+Random effects:
+ Groups   Name        Variance Std.Dev.
+ division (Intercept) 0.02782  0.1668  
+ Residual             0.13484  0.3672  
+Number of obs: 4575, groups:  division, 9
+
+Fixed effects:
+             Estimate Std. Error t value
+(Intercept)   0.64905    0.08031   8.082
+het           0.03360    0.04331   0.776
+mrp_estimate  0.62098    0.03381  18.366
+
+Correlation of Fixed Effects:
+            (Intr) het   
+het         -0.715       
+mrp_estimat -0.177  0.164
+
+$h.d
+Linear mixed model fit by REML ['lmerMod']
+Formula: pred.np ~ het + mrp_estimate + (1 | division)
+   Data: subset(legis.m[["h"]], party == "D")
+
+REML criterion at convergence: 3602.5
+
+Scaled residuals: 
+    Min      1Q  Median      3Q     Max 
+-5.8495 -0.6319 -0.0054  0.6320  6.1046 
+
+Random effects:
+ Groups   Name        Variance Std.Dev.
+ division (Intercept) 0.05235  0.2288  
+ Residual             0.13280  0.3644  
+Number of obs: 4328, groups:  division, 9
+
+Fixed effects:
+             Estimate Std. Error t value
+(Intercept)  -0.46997    0.08988   -5.23
+het          -0.15278    0.03729   -4.10
+mrp_estimate  0.83762    0.02052   40.81
+
+Correlation of Fixed Effects:
+            (Intr) het   
+het         -0.525       
+mrp_estimat  0.138 -0.224
+
+$s.r
+Linear mixed model fit by REML ['lmerMod']
+Formula: pred.np ~ het + mrp_estimate + (1 | division)
+   Data: subset(legis.m[["s"]], party == "R")
+
+REML criterion at convergence: 1215.7
+
+Scaled residuals: 
+    Min      1Q  Median      3Q     Max 
+-3.4464 -0.6385 -0.0653  0.5487  6.6669 
+
+Random effects:
+ Groups   Name        Variance Std.Dev.
+ division (Intercept) 0.03217  0.1794  
+ Residual             0.12810  0.3579  
+Number of obs: 1501, groups:  division, 9
+
+Fixed effects:
+             Estimate Std. Error t value
+(Intercept)   0.05421    0.15465   0.351
+het           0.43857    0.10489   4.181
+mrp_estimate  0.83902    0.06054  13.859
+
+Correlation of Fixed Effects:
+            (Intr) het   
+het         -0.919       
+mrp_estimat -0.318  0.291
+
+$s.d
+Linear mixed model fit by REML ['lmerMod']
+Formula: pred.np ~ het + mrp_estimate + (1 | division)
+   Data: subset(legis.m[["s"]], party == "D")
+
+REML criterion at convergence: 1020.4
+
+Scaled residuals: 
+    Min      1Q  Median      3Q     Max 
+-5.2644 -0.6616  0.0112  0.6654  3.4026 
+
+Random effects:
+ Groups   Name        Variance Std.Dev.
+ division (Intercept) 0.05636  0.2374  
+ Residual             0.12239  0.3498  
+Number of obs: 1322, groups:  division, 9
+
+Fixed effects:
+             Estimate Std. Error t value
+(Intercept)  -0.30467    0.14787   -2.06
+het          -0.32457    0.09576   -3.39
+mrp_estimate  0.84836    0.03667   23.13
+
+Correlation of Fixed Effects:
+            (Intr) het   
+het         -0.841       
+mrp_estimat  0.313 -0.338
+
+> 
+> for (chamb in c("s","h")) {
++   
++   paths = str_c("Tables/div_heterogeneity_party_mlm_",chamb,".tex")
++   print(paths)
++   
++   chtype = ifelse(chamb=="s","Upper","Lower")
++   
++   stargazer(mlm.div[[str_c(chamb,".r")]],mlm.div[[str_c(chamb,".d")]],digits = 2,
++             title = str_c("Heterogeneity - ",chtype," Chamber Score Models (Multilevel)"),
++             covariate.labels = c("Heterogeneity","Citizen Ideology","Constant"),
++             column.labels = c("R","D"),
++             dep.var.labels=c("Legislator Score"),  label = str_c("div.het.mlm.models.",chamb),
++             out = paths)
++   
++ }
+[1] "Tables/div_heterogeneity_party_mlm_s.tex"
+
+% Table created by stargazer v.5.1 by Marek Hlavac, Harvard University. E-mail: hlavac at fas.harvard.edu
+% Date and time: Mon, Jul 03, 2017 - 03:27:05 PM
+\begin{table}[!htbp] \centering 
+  \caption{Heterogeneity - Upper Chamber Score Models (Multilevel)} 
+  \label{div.het.mlm.models.s} 
+\begin{tabular}{@{\extracolsep{5pt}}lcc} 
+\\[-1.8ex]\hline 
+\hline \\[-1.8ex] 
+ & \multicolumn{2}{c}{\textit{Dependent variable:}} \\ 
+\cline{2-3} 
+\\[-1.8ex] & \multicolumn{2}{c}{Legislator Score} \\ 
+ & R & D \\ 
+\\[-1.8ex] & (1) & (2)\\ 
+\hline \\[-1.8ex] 
+ Heterogeneity & 0.44$^{***}$ & $-$0.32$^{***}$ \\ 
+  & (0.10) & (0.10) \\ 
+  & & \\ 
+ Citizen Ideology & 0.84$^{***}$ & 0.85$^{***}$ \\ 
+  & (0.06) & (0.04) \\ 
+  & & \\ 
+ Constant & 0.05 & $-$0.30$^{**}$ \\ 
+  & (0.15) & (0.15) \\ 
+  & & \\ 
+\hline \\[-1.8ex] 
+Observations & 1,501 & 1,322 \\ 
+Log Likelihood & $-$607.87 & $-$510.19 \\ 
+Akaike Inf. Crit. & 1,225.74 & 1,030.38 \\ 
+Bayesian Inf. Crit. & 1,252.31 & 1,056.31 \\ 
+\hline 
+\hline \\[-1.8ex] 
+\textit{Note:}  & \multicolumn{2}{r}{$^{*}$p$<$0.1; $^{**}$p$<$0.05; $^{***}$p$<$0.01} \\ 
+\end{tabular} 
+\end{table} 
+[1] "Tables/div_heterogeneity_party_mlm_h.tex"
+
+% Table created by stargazer v.5.1 by Marek Hlavac, Harvard University. E-mail: hlavac at fas.harvard.edu
+% Date and time: Mon, Jul 03, 2017 - 03:27:06 PM
+\begin{table}[!htbp] \centering 
+  \caption{Heterogeneity - Lower Chamber Score Models (Multilevel)} 
+  \label{div.het.mlm.models.h} 
+\begin{tabular}{@{\extracolsep{5pt}}lcc} 
+\\[-1.8ex]\hline 
+\hline \\[-1.8ex] 
+ & \multicolumn{2}{c}{\textit{Dependent variable:}} \\ 
+\cline{2-3} 
+\\[-1.8ex] & \multicolumn{2}{c}{Legislator Score} \\ 
+ & R & D \\ 
+\\[-1.8ex] & (1) & (2)\\ 
+\hline \\[-1.8ex] 
+ Heterogeneity & 0.03 & $-$0.15$^{***}$ \\ 
+  & (0.04) & (0.04) \\ 
+  & & \\ 
+ Citizen Ideology & 0.62$^{***}$ & 0.84$^{***}$ \\ 
+  & (0.03) & (0.02) \\ 
+  & & \\ 
+ Constant & 0.65$^{***}$ & $-$0.47$^{***}$ \\ 
+  & (0.08) & (0.09) \\ 
+  & & \\ 
+\hline \\[-1.8ex] 
+Observations & 4,575 & 4,328 \\ 
+Log Likelihood & $-$1,934.11 & $-$1,801.24 \\ 
+Akaike Inf. Crit. & 3,878.23 & 3,612.48 \\ 
+Bayesian Inf. Crit. & 3,910.37 & 3,644.34 \\ 
+\hline 
+\hline \\[-1.8ex] 
+\textit{Note:}  & \multicolumn{2}{r}{$^{*}$p$<$0.1; $^{**}$p$<$0.05; $^{***}$p$<$0.01} \\ 
+\end{tabular} 
+\end{table} 
+> 
+> #########
+> # Effects (for table 1)
+> 
+> 
+> effects = list()
+> 
+> benchmark = mean(sd.st$V1)
+> 
+> for (chamb in c("s")) {
++   
++   print(chamb)
++   cat("\n")
++   
++   pl.mi = plusminus(sld_chris[[chamb]]$het)
++   cat("Range is",pl.mi,"\n")
++   for (model in c("r","d")) {
++     print(model)
++     cat("\n")
++     
++     # sd
++     pred = expand.grid(division=5,het=pl.mi,mrp_estimate=mean(sld_chris[[chamb]]$mrp_estimate,na.rm=T))
++     pred
++     pred$pred <- predict(mlm.div[[str_c(chamb,".",model)]], newdata = pred)
++     print(round(pred,3))
++     cat("\n")
++     
++     effect=pred$pred[2]-pred$pred[1]
++     print(paste("Effect size of 1 SD shift:",round(effect,3)))
++     print(paste("Effect size as a proportion of SD of legislator ideology:",round(effect/benchmark,3)))
++     cat("\n")
++     
++     effects[str_c(chamb,".",model)]=effect
++     
++   }    
++   cat("\n")
++   effect.total = as.numeric(effects[str_c(chamb,".r")])-as.numeric(effects[str_c(chamb,".d")])
++   print(paste("Total predicted effect:",round(effect.total,3)))
++   print(paste("Total Effect size as a proportion of SD of legislator ideology:",round(effect.total/benchmark,3)))
++   cat("\n\n")
++   
++ }
+[1] "s"
+
+Range is 1.245949 1.360501 
+[1] "r"
+
+  division   het mrp_estimate  pred
+1        5 1.246        0.021 0.638
+2        5 1.361        0.021 0.688
+
+[1] "Effect size of 1 SD shift: 0.05"
+[1] "Effect size as a proportion of SD of legislator ideology: 0.139"
+
+[1] "d"
+
+  division   het mrp_estimate   pred
+1        5 1.246        0.021 -0.594
+2        5 1.361        0.021 -0.631
+
+[1] "Effect size of 1 SD shift: -0.037"
+[1] "Effect size as a proportion of SD of legislator ideology: -0.103"
+
+
+[1] "Total predicted effect: 0.087"
+[1] "Total Effect size as a proportion of SD of legislator ideology: 0.242"
+
+
+> 
+> 
+> #########
+> # Figure 6: Marginal effect plot
+> 
+> for (chamb in c("s")) {
++   
++   for (model in c("r","d")) {
++     pred = expand.grid(division=5,het=seq(min(sld_chris[[chamb]]$het,na.rm=T),max(sld_chris[[chamb]]$het,na.rm=T),length.out=1000),mrp_estimate=mean(sld_chris[[chamb]]$mrp_estimate,na.rm=T))
++     preds <- predictSE(mlm.div[[str_c(chamb,".",model)]], newdata = pred,se.fit=T)
++     pred$pred = preds$fit
++     pred$se = preds$se.fit
++ 
++     if (chamb == "s") { xrange = c(0.8,1.6)} else { xrange = c(0,3)} 
++     p=ggplot(pred, aes(x = het, y = pred)) + 
++       geom_line() + theme_bw()  + xlim(xrange) +
++       theme(axis.text.x = element_text(size=16), axis.text.y = element_text(size=16), axis.title.x = element_text(size=22), axis.title.y = element_text(size=22), title = element_text(size=18)) +
++       theme(legend.position="none") +  labs(list(x="Heterogeneity",y="Predicted Score",fill=""))
++     p
++     
++     ggs(str_c("Models/",str_c("predicted_",chamb,"_",model)),subfolder=T,width=11,height=8.5,save=T)
++   }
++ }
+[1] "Plots/pdf/Models/predicted_s_r.pdf"
+[1] "Plots/pdf/Models/predicted_s_d.pdf"
+Warning messages:
+1: Removed 14 rows containing missing values (geom_path). 
+2: Removed 14 rows containing missing values (geom_path). 
+> 
+> 
+> 
+> #########
+> # Table 2 and B.3: matching
+> 
+> 
+> estimand = "ATE"
+> fit = fit.unc = list()
+> 
+> for (chamb in c("s","h")) { # chamber.list
++   
++   legis.m[[chamb]]$matching = legis.m[[chamb]]$mrp_estimate
++   
++   legis.sub = subset(legis.m[[chamb]],!is.na(pred.np) & !is.na(party) & !is.na(matching))
++   
++   match.fit = Match(Y=legis.sub$pred.np, Tr=legis.sub$pid, X=legis.sub$matching, estimand = estimand)
++   summary(match.fit)
++   
++   fit[["overall"]] = fit.unc[["overall"]] = match.fit
++   
++   # heterogeneity
++   legis.hi.het.cit = subset(legis.sub,het>median(het,na.rm=T))
++   legis.low.het.cit = subset(legis.sub,het<=median(het,na.rm=T))    
++   
++   fit[["hi.het.cit"]] = Match(Y=legis.hi.het.cit$pred.np, Tr=legis.hi.het.cit$pid, X=legis.hi.het.cit$matching, estimand = estimand)
++   summary(fit[["hi.het.cit"]])
++   
++   fit[["low.het.cit"]] = Match(Y=legis.low.het.cit$pred.np, Tr=legis.low.het.cit$pid, X=legis.low.het.cit$matching, estimand = estimand)
++   summary(fit[["low.het.cit"]])
++   
++   AIDD = round(sapply(fit,function(x){ x $ est}),2)
++   SE = round(sapply(fit,function(x){ x $ se}),2)
++   N.Obs = sapply(fit,function(x){ x $ orig.nobs})
++   N.Rep = sapply(fit,function(x){ x $ orig.treated.nobs})
++   
++   match.results =  data.frame(N.Obs,N.Rep,AIDD,SE)
++   rownames(match.results) = c("Overall","High Heterogeneity","Low Heterogeneity")
++   print(match.results)
++   
++   chtype = ifelse(chamb=="s","Upper","Lower")
++   
++   sink(str_c("Tables/match_results_",chamb,".tex"))
++   print(xtable(match.results, caption = str_c("Matching Estimates of the AIDD (Average Treatment Effect) in the ",chtype," Chamber"), label=str_c("matching.ests",chamb)))
++   sink()
++   
++   
++   if (chamb=="s") {
++     # uncertainty
++     legis.hi.unc.cit = subset(legis.sub,unc>median(unc,na.rm=T))
++     legis.low.unc.cit = subset(legis.sub,unc<=median(unc,na.rm=T))    
++     
++     fit.unc[["hi.unc.cit"]] = Match(Y=legis.hi.unc.cit$pred.np, Tr=legis.hi.unc.cit$pid, X=legis.hi.unc.cit$matching, estimand = estimand)
++     summary(fit.unc[["hi.unc.cit"]])
++     
++     fit.unc[["low.unc.cit"]] = Match(Y=legis.low.unc.cit$pred.np, Tr=legis.low.unc.cit$pid, X=legis.low.unc.cit$matching, estimand = estimand)
++     summary(fit.unc[["low.unc.cit"]])
++     
++     AIDD = round(sapply(fit.unc,function(x){ x $ est}),2)
++     SE = round(sapply(fit.unc,function(x){ x $ se}),2)
++     N.Obs = sapply(fit.unc,function(x){ x $ orig.nobs})
++     N.Rep = sapply(fit.unc,function(x){ x $ orig.treated.nobs})
++     
++     match.results =  data.frame(N.Obs,N.Rep,AIDD,SE)
++     rownames(match.results) = c("Overall","High Uncertainty","Low Uncertainty")
++     print(match.results)
++     
++     sink(str_c("Tables/match_results_uncertainty_",chamb,".tex"))
++     print(xtable(match.results, caption = str_c("Matching Estimates of the AIDD (Average Treatment Effect) in the ",chtype," Chamber"), label="matching.unc.ests"))
++     sink()
++     
++   }
++   
++   
++ }
+
+Estimate...  1.2699 
+AI SE......  0.023694 
+T-stat.....  53.595 
+p.val......  < 2.22e-16 
+
+Original number of observations..............  3396 
+Original number of treated obs...............  1784 
+Matched number of observations...............  3396 
+Matched number of observations  (unweighted).  12272 
+
+
+Estimate...  1.4473 
+AI SE......  0.036084 
+T-stat.....  40.11 
+p.val......  < 2.22e-16 
+
+Original number of observations..............  1409 
+Original number of treated obs...............  864 
+Matched number of observations...............  1409 
+Matched number of observations  (unweighted).  2776 
+
+
+Estimate...  1.1498 
+AI SE......  0.038346 
+T-stat.....  29.985 
+p.val......  < 2.22e-16 
+
+Original number of observations..............  1414 
+Original number of treated obs...............  637 
+Matched number of observations...............  1414 
+Matched number of observations  (unweighted).  3154 
+
+                   N.Obs N.Rep AIDD   SE
+Overall             3396  1784 1.27 0.02
+High Heterogeneity  1409   864 1.45 0.04
+Low Heterogeneity   1414   637 1.15 0.04
+
+Estimate...  1.4293 
+AI SE......  0.032647 
+T-stat.....  43.781 
+p.val......  < 2.22e-16 
+
+Original number of observations..............  1410 
+Original number of treated obs...............  865 
+Matched number of observations...............  1410 
+Matched number of observations  (unweighted).  2899 
+
+
+Estimate...  1.2207 
+AI SE......  0.04526 
+T-stat.....  26.972 
+p.val......  < 2.22e-16 
+
+Original number of observations..............  1413 
+Original number of treated obs...............  636 
+Matched number of observations...............  1413 
+Matched number of observations  (unweighted).  3022 
+
+                 N.Obs N.Rep AIDD   SE
+Overall           3396  1784 1.27 0.02
+High Uncertainty  1410   865 1.43 0.03
+Low Uncertainty   1413   636 1.22 0.05
+
+Estimate...  1.2901 
+AI SE......  0.019295 
+T-stat.....  66.862 
+p.val......  < 2.22e-16 
+
+Original number of observations..............  8906 
+Original number of treated obs...............  4576 
+Matched number of observations...............  8906 
+Matched number of observations  (unweighted).  73370 
+
+
+Estimate...  1.3815 
+AI SE......  0.017255 
+T-stat.....  80.063 
+p.val......  < 2.22e-16 
+
+Original number of observations..............  4451 
+Original number of treated obs...............  2659 
+Matched number of observations...............  4451 
+Matched number of observations  (unweighted).  19415 
+
+
+Estimate...  1.1992 
+AI SE......  0.027425 
+T-stat.....  43.727 
+p.val......  < 2.22e-16 
+
+Original number of observations..............  4452 
+Original number of treated obs...............  1916 
+Matched number of observations...............  4452 
+Matched number of observations  (unweighted).  21232 
+
+                   N.Obs N.Rep AIDD   SE
+Overall             8906  4576 1.29 0.02
+High Heterogeneity  4451  2659 1.38 0.02
+Low Heterogeneity   4452  1916 1.20 0.03
+> 
+> 
+> ##########################
+> # Figure 7a and C.5a: within-district switches
+> 
+> for (chamb in c("s","h")) {
++   
++   nparty.sld = ddply(legis.m[[chamb]], .(sld), summarize, parties = length(unique(party)))
++   sld.switch = subset(nparty.sld,parties == 2)$sld
++   sld.switch.df = subset(nparty.sld,parties == 2)
++   table(nparty.sld$parties)
++   
++   score.all = ddply(subset(legis.m[[chamb]],sld%in%sld.switch), .(sld,party), summarize, score = mean(pred.np), het = mean(het))
++   score.r = ddply(subset(legis.m[[chamb]],sld%in%sld.switch & legis.m[[chamb]]$party == "R"), .(sld,party), summarize, score = mean(pred.np), het = mean(het))
++   score.d = ddply(subset(legis.m[[chamb]],sld%in%sld.switch & legis.m[[chamb]]$party == "D"), .(sld,party), summarize, score = mean(pred.np), het = mean(het))
++   
++   score.sld = subset(score.r,select=c(sld,het))
++   score.sld$diverge = score.r$score - score.d$score
++   
++   # het
++   withindist.cor = with(score.sld,cor.test(diverge,het)) # 0.31 S # 0.15 H
++   print(withindist.cor)
++   
++   data.labels <- data.frame(label = str_c("r = ",round(withindist.cor$estimate,2)))
++   p=ggplot(score.sld, aes(x=het,y=diverge))  +  geom_point(alpha=.5, size = 3) +   geom_smooth(method=lm,se=F,size=1.25,alpha=.25, colour="black") + 
++     theme_bw() + labs(list(y="District Divergence",x="Heterogeneity",fill=""))  + # ,title="Within-District Party Divergence",
++     geom_text(data=data.labels, aes(x = min(score.sld$het,na.rm=T)+.04, y = 3.5, label = label),size=10,show.legend=F) +  
++     theme(axis.text.x = element_text(size=16), axis.text.y = element_text(size=16), axis.title.x = element_text(size=22), axis.title.y = element_text(size=22), title = element_text(size=18)) +
++     theme(legend.position="none")
++   p
++   ggs(str_c("Scatter/within_district_divergence_",chamb),subfolder=T,width=11,height=8.5)
++ 
++ }
+
+	Pearson's product-moment correlation
+
+data:  diverge and het
+t = 5.4265, df = 280, p-value = 1.245e-07
+alternative hypothesis: true correlation is not equal to 0
+95 percent confidence interval:
+ 0.1988409 0.4104942
+sample estimates:
+      cor 
+0.3084807 
+
+[1] "Plots/pdf/Scatter/within_district_divergence_s.pdf"
+
+	Pearson's product-moment correlation
+
+data:  diverge and het
+t = 3.6423, df = 976, p-value = 0.0002844
+alternative hypothesis: true correlation is not equal to 0
+95 percent confidence interval:
+ 0.05350406 0.17720285
+sample estimates:
+      cor 
+0.1158024 
+
+[1] "Plots/pdf/Scatter/within_district_divergence_h.pdf"
+Warning messages:
+1: Removed 89 rows containing missing values (stat_smooth). 
+2: Removed 89 rows containing missing values (geom_point). 
+3: Removed 146 rows containing missing values (stat_smooth). 
+4: Removed 146 rows containing missing values (geom_point). 
+> 
+> 
+> ##################
+> # Figure 7b and C.5b: within-district,  within-year
+> 
+> legis.m.all = list("s"=senate.m.all,"h"=house.m.all)
+> legis.m.all[["s"]]$sldy = str_c(legis.m.all[["s"]]$sld,"_",legis.m.all[["s"]]$year)
+> legis.m.all[["h"]]$sldy = str_c(legis.m.all[["h"]]$sld,"_",legis.m.all[["h"]]$year)
+> 
+> for (chamb in c("s","h")) {
++     
++   nparty.sldy = ddply(legis.m.all[[chamb]], .(sldy,st), summarize, parties = length(unique(party)))
++   table(nparty.sldy$parties)
++ 
++   sld.mmd = subset(nparty.sldy,parties == 2)$sldy
++   sld.mmd.df = subset(nparty.sldy,parties == 2)
++   
++   score.all = ddply(subset(legis.m.all[[chamb]],sldy%in%sld.mmd), .(sldy,st,party), summarize, score = mean(pred.np), het = mean(het))
++   score.r = ddply(subset(legis.m.all[[chamb]],sldy%in%sld.mmd & legis.m.all[[chamb]]$party == "R"), .(sldy,st,party), summarize, score.r = mean(pred.np), het = mean(het))
++   score.d = ddply(subset(legis.m.all[[chamb]],sldy%in%sld.mmd & legis.m.all[[chamb]]$party == "D"), .(sldy,st,party), summarize, score.d = mean(pred.np))
++ 
++   score.sldy = merge(score.r,score.d,by=c("sldy","st"))
++ 
++   score.sldy$diverge = score.sldy$score.r - score.sldy$score.d
++   
++   withindist.cor = with(score.sldy,cor.test(diverge,het))
++   print(withindist.cor)
++   
++   data.labels <- data.frame(label = str_c("r = ",round(withindist.cor$estimate,2)))
++   
++   p=ggplot(score.sldy, aes(x=het,y=diverge))  +  geom_point(alpha=.5, size = 3) +   geom_smooth(method=lm,se=F,size=1.25,alpha=.25, colour="black") + 
++     theme_bw() + labs(list(y="District Divergence",x="Heterogeneity",fill=""))  + # ,title="Within-District, Within-Year Party Divergence",
++     geom_text(data=data.labels, aes(x = min(score.sldy$het,na.rm=T)+.015, y = 3.5, label = label),size=10,show.legend=F) +  
++     theme(axis.text.x = element_text(size=16), axis.text.y = element_text(size=16), axis.title.x = element_text(size=22), axis.title.y = element_text(size=22), title = element_text(size=18)) +
++     theme(legend.position="none")
++   p
++   
++   ggs(str_c("Scatter/within_district_year_divergence_",chamb),subfolder=T,width=11,height=8.5)
++ }
+
+	Pearson's product-moment correlation
+
+data:  diverge and het
+t = 5.3288, df = 48, p-value = 2.609e-06
+alternative hypothesis: true correlation is not equal to 0
+95 percent confidence interval:
+ 0.3990348 0.7591817
+sample estimates:
+      cor 
+0.6096666 
+
+[1] "Plots/pdf/Scatter/within_district_year_divergence_s.pdf"
+
+	Pearson's product-moment correlation
+
+data:  diverge and het
+t = 3.4528, df = 364, p-value = 0.00062
+alternative hypothesis: true correlation is not equal to 0
+95 percent confidence interval:
+ 0.07698035 0.27556462
+sample estimates:
+      cor 
+0.1780851 
+
+[1] "Plots/pdf/Scatter/within_district_year_divergence_h.pdf"
+Warning messages:
+1: Removed 6 rows containing missing values (stat_smooth). 
+2: Removed 6 rows containing missing values (geom_point). 
+3: Removed 105 rows containing missing values (stat_smooth). 
+4: Removed 105 rows containing missing values (geom_point). 
+> 
+> 
+> ####################
+> # Appendix Only
+> 
+> # Table B.2: uncertainty
+> 
+> mlm.u.div = list()
+> 
+> mlm.u.div[["s.r"]]=lmer(pred.np~unc+mrp_estimate+(1|division),data=subset(legis.m[["s"]],party=="R"))
+> mlm.u.div[["s.d"]]=lmer(pred.np~unc+mrp_estimate+(1|division),data=subset(legis.m[["s"]],party=="D"))
+> 
+> lapply(mlm.u.div,summary)
+$s.r
+Linear mixed model fit by REML ['lmerMod']
+Formula: pred.np ~ unc + mrp_estimate + (1 | division)
+   Data: subset(legis.m[["s"]], party == "R")
+
+REML criterion at convergence: 1214
+
+Scaled residuals: 
+    Min      1Q  Median      3Q     Max 
+-3.4413 -0.6337 -0.0596  0.5522  6.5168 
+
+Random effects:
+ Groups   Name        Variance Std.Dev.
+ division (Intercept) 0.03393  0.1842  
+ Residual             0.12791  0.3576  
+Number of obs: 1501, groups:  division, 9
+
+Fixed effects:
+             Estimate Std. Error t value
+(Intercept)   0.51626    0.06956   7.422
+unc           0.43908    0.10008   4.387
+mrp_estimate  0.81088    0.05885  13.779
+
+Correlation of Fixed Effects:
+            (Intr) unc   
+unc         -0.433       
+mrp_estimat -0.193  0.179
+
+$s.d
+Linear mixed model fit by REML ['lmerMod']
+Formula: pred.np ~ unc + mrp_estimate + (1 | division)
+   Data: subset(legis.m[["s"]], party == "D")
+
+REML criterion at convergence: 1016.8
+
+Scaled residuals: 
+    Min      1Q  Median      3Q     Max 
+-5.2893 -0.6647  0.0240  0.6666  3.3438 
+
+Random effects:
+ Groups   Name        Variance Std.Dev.
+ division (Intercept) 0.05788  0.2406  
+ Residual             0.12207  0.3494  
+Number of obs: 1322, groups:  division, 9
+
+Fixed effects:
+             Estimate Std. Error t value
+(Intercept)  -0.61288    0.08618  -7.111
+unc          -0.43235    0.11264  -3.838
+mrp_estimate  0.84234    0.03573  23.572
+
+Correlation of Fixed Effects:
+            (Intr) unc   
+unc         -0.343       
+mrp_estimat  0.141 -0.263
+
+> 
+> for (chamb in c("s")) {
++   
++   paths = str_c("Tables/div_uncertainty_party_mlm_",chamb,".tex")
++   print(paths)
++   
++   stargazer(mlm.u.div[[str_c(chamb,".r")]],mlm.u.div[[str_c(chamb,".d")]],digits = 2,
++             title = "Uncertainty - Legislator Score Models (Multilevel)",
++             covariate.labels = c("Uncertainty","Citizen Ideology","Constant"),
++             column.labels = c("R","D"),
++             dep.var.labels=c("Legislator Score"),  label = "div.unc.mlm.models",
++             out=paths)
++   
++ }
+[1] "Tables/div_uncertainty_party_mlm_s.tex"
+
+% Table created by stargazer v.5.1 by Marek Hlavac, Harvard University. E-mail: hlavac at fas.harvard.edu
+% Date and time: Mon, Jul 03, 2017 - 03:28:00 PM
+\begin{table}[!htbp] \centering 
+  \caption{Uncertainty - Legislator Score Models (Multilevel)} 
+  \label{div.unc.mlm.models} 
+\begin{tabular}{@{\extracolsep{5pt}}lcc} 
+\\[-1.8ex]\hline 
+\hline \\[-1.8ex] 
+ & \multicolumn{2}{c}{\textit{Dependent variable:}} \\ 
+\cline{2-3} 
+\\[-1.8ex] & \multicolumn{2}{c}{Legislator Score} \\ 
+ & R & D \\ 
+\\[-1.8ex] & (1) & (2)\\ 
+\hline \\[-1.8ex] 
+ Uncertainty & 0.44$^{***}$ & $-$0.43$^{***}$ \\ 
+  & (0.10) & (0.11) \\ 
+  & & \\ 
+ Citizen Ideology & 0.81$^{***}$ & 0.84$^{***}$ \\ 
+  & (0.06) & (0.04) \\ 
+  & & \\ 
+ Constant & 0.52$^{***}$ & $-$0.61$^{***}$ \\ 
+  & (0.07) & (0.09) \\ 
+  & & \\ 
+\hline \\[-1.8ex] 
+Observations & 1,501 & 1,322 \\ 
+Log Likelihood & $-$607.02 & $-$508.40 \\ 
+Akaike Inf. Crit. & 1,224.04 & 1,026.81 \\ 
+Bayesian Inf. Crit. & 1,250.61 & 1,052.74 \\ 
+\hline 
+\hline \\[-1.8ex] 
+\textit{Note:}  & \multicolumn{2}{r}{$^{*}$p$<$0.1; $^{**}$p$<$0.05; $^{***}$p$<$0.01} \\ 
+\end{tabular} 
+\end{table} 
+> 
+> # Table B.4: Varying intercepts by state
+> 
+> mlm.st = list()
+> 
+> mlm.st[["s.r"]]=lmer(pred.np~het+mrp_estimate+(1|st),data=subset(legis.m[["s"]],party=="R"))
+> mlm.st[["s.d"]]=lmer(pred.np~het+mrp_estimate+(1|st),data=subset(legis.m[["s"]],party=="D"))
+> 
+> lapply(mlm.st,summary)
+$s.r
+Linear mixed model fit by REML ['lmerMod']
+Formula: pred.np ~ het + mrp_estimate + (1 | st)
+   Data: subset(legis.m[["s"]], party == "R")
+
+REML criterion at convergence: 865.5
+
+Scaled residuals: 
+    Min      1Q  Median      3Q     Max 
+-3.9587 -0.5455 -0.0633  0.4672  7.5557 
+
+Random effects:
+ Groups   Name        Variance Std.Dev.
+ st       (Intercept) 0.06751  0.2598  
+ Residual             0.09467  0.3077  
+Number of obs: 1501, groups:  st, 45
+
+Fixed effects:
+             Estimate Std. Error t value
+(Intercept)   0.39698    0.13580   2.923
+het           0.19539    0.09596   2.036
+mrp_estimate  0.57204    0.06009   9.520
+
+Correlation of Fixed Effects:
+            (Intr) het   
+het         -0.953       
+mrp_estimat -0.284  0.241
+
+$s.d
+Linear mixed model fit by REML ['lmerMod']
+Formula: pred.np ~ het + mrp_estimate + (1 | st)
+   Data: subset(legis.m[["s"]], party == "D")
+
+REML criterion at convergence: 680.4
+
+Scaled residuals: 
+    Min      1Q  Median      3Q     Max 
+-5.7627 -0.5697  0.0308  0.6128  4.2103 
+
+Random effects:
+ Groups   Name        Variance Std.Dev.
+ st       (Intercept) 0.08653  0.2942  
+ Residual             0.08726  0.2954  
+Number of obs: 1322, groups:  st, 44
+
+Fixed effects:
+             Estimate Std. Error t value
+(Intercept)  -0.48656    0.12047  -4.039
+het          -0.16803    0.08547  -1.966
+mrp_estimate  0.77305    0.03445  22.442
+
+Correlation of Fixed Effects:
+            (Intr) het   
+het         -0.925       
+mrp_estimat  0.331 -0.326
+
+> 
+> 
+> for (chamb in c("s")) {
++   
++   paths = str_c("Tables/st_heterogeneity_party_mlm_",chamb,".tex")
++   print(paths)
++   
++   stargazer(mlm.st[[str_c(chamb,".r")]],mlm.st[[str_c(chamb,".d")]],digits = 2,
++             title = "Heterogeneity - Legislator Score Models (Multilevel)",
++             covariate.labels = c("Heterogeneity","Citizen Ideology","Constant"),
++             column.labels = c("R","D"),
++             dep.var.labels=c("Legislator Score"),  label = "st.het.mlm.models",
++             out=paths)
++   
++ }
+[1] "Tables/st_heterogeneity_party_mlm_s.tex"
+
+% Table created by stargazer v.5.1 by Marek Hlavac, Harvard University. E-mail: hlavac at fas.harvard.edu
+% Date and time: Mon, Jul 03, 2017 - 03:28:01 PM
+\begin{table}[!htbp] \centering 
+  \caption{Heterogeneity - Legislator Score Models (Multilevel)} 
+  \label{st.het.mlm.models} 
+\begin{tabular}{@{\extracolsep{5pt}}lcc} 
+\\[-1.8ex]\hline 
+\hline \\[-1.8ex] 
+ & \multicolumn{2}{c}{\textit{Dependent variable:}} \\ 
+\cline{2-3} 
+\\[-1.8ex] & \multicolumn{2}{c}{Legislator Score} \\ 
+ & R & D \\ 
+\\[-1.8ex] & (1) & (2)\\ 
+\hline \\[-1.8ex] 
+ Heterogeneity & 0.20$^{**}$ & $-$0.17$^{**}$ \\ 
+  & (0.10) & (0.09) \\ 
+  & & \\ 
+ Citizen Ideology & 0.57$^{***}$ & 0.77$^{***}$ \\ 
+  & (0.06) & (0.03) \\ 
+  & & \\ 
+ Constant & 0.40$^{***}$ & $-$0.49$^{***}$ \\ 
+  & (0.14) & (0.12) \\ 
+  & & \\ 
+\hline \\[-1.8ex] 
+Observations & 1,501 & 1,322 \\ 
+Log Likelihood & $-$432.75 & $-$340.20 \\ 
+Akaike Inf. Crit. & 875.50 & 690.41 \\ 
+Bayesian Inf. Crit. & 902.07 & 716.34 \\ 
+\hline 
+\hline \\[-1.8ex] 
+\textit{Note:}  & \multicolumn{2}{r}{$^{*}$p$<$0.1; $^{**}$p$<$0.05; $^{***}$p$<$0.01} \\ 
+\end{tabular} 
+\end{table} 
+> 
+> 
+> # Table E.3: repeat for percentiles as proxy for primary
+> 
+> mlm.p.div = list()
+> 
+> mlm.p.div[["s.r"]]=lmer(pred.np~x80+x20+mrp_estimate+(1|division),data=subset(legis.m[["s"]],party=="R"))
+> mlm.p.div[["s.d"]]=lmer(pred.np~x80+x20+mrp_estimate+(1|division),data=subset(legis.m[["s"]],party=="D"))
+> 
+> lapply(mlm.p.div,summary)
+$s.r
+Linear mixed model fit by REML ['lmerMod']
+Formula: pred.np ~ x80 + x20 + mrp_estimate + (1 | division)
+   Data: subset(legis.m[["s"]], party == "R")
+
+REML criterion at convergence: 1378.7
+
+Scaled residuals: 
+    Min      1Q  Median      3Q     Max 
+-3.4540 -0.6261 -0.0406  0.5614  6.6427 
+
+Random effects:
+ Groups   Name        Variance Std.Dev.
+ division (Intercept) 0.03473  0.1864  
+ Residual             0.12465  0.3531  
+Number of obs: 1760, groups:  division, 9
+
+Fixed effects:
+             Estimate Std. Error t value
+(Intercept)   0.40348    0.09185   4.393
+x80           0.09775    0.03473   2.814
+x20          -0.08341    0.03692  -2.259
+mrp_estimate  0.70461    0.08660   8.136
+
+Correlation of Fixed Effects:
+            (Intr) x80    x20   
+x80         -0.460              
+x20          0.521  0.082       
+mrp_estimat -0.202 -0.453 -0.672
+
+$s.d
+Linear mixed model fit by REML ['lmerMod']
+Formula: pred.np ~ x80 + x20 + mrp_estimate + (1 | division)
+   Data: subset(legis.m[["s"]], party == "D")
+
+REML criterion at convergence: 1316
+
+Scaled residuals: 
+    Min      1Q  Median      3Q     Max 
+-5.0667 -0.6783  0.0295  0.6580  3.9736 
+
+Random effects:
+ Groups   Name        Variance Std.Dev.
+ division (Intercept) 0.04584  0.2141  
+ Residual             0.13463  0.3669  
+Number of obs: 1520, groups:  division, 9
+
+Fixed effects:
+             Estimate Std. Error t value
+(Intercept)  -0.32296    0.09310  -3.469
+x80          -0.17620    0.03145  -5.602
+x20           0.10250    0.03829   2.677
+mrp_estimate  0.98043    0.06561  14.943
+
+Correlation of Fixed Effects:
+            (Intr) x80    x20   
+x80         -0.361              
+x20          0.476  0.112       
+mrp_estimat -0.004 -0.679 -0.590
+
+> 
+> for (chamb in c("s")) {
++   
++   paths = str_c("Tables/div_percentile_party_mlm_",chamb,".tex")
++   print(paths)
++   
++   stargazer(mlm.p.div[[str_c(chamb,".r")]],mlm.p.div[[str_c(chamb,".d")]],digits = 2,
++             title = "Percentiles - Legislator Score Models (Multilevel)",
++             covariate.labels = c("80th Percentile","20th Percentile","Citizen Ideology","Constant"),
++             column.labels = c("R","D"),
++             dep.var.labels=c("Legislator Score"),  label = "div.perc.mlm.models",
++             out=paths)
++ }
+[1] "Tables/div_percentile_party_mlm_s.tex"
+
+% Table created by stargazer v.5.1 by Marek Hlavac, Harvard University. E-mail: hlavac at fas.harvard.edu
+% Date and time: Mon, Jul 03, 2017 - 03:28:03 PM
+\begin{table}[!htbp] \centering 
+  \caption{Percentiles - Legislator Score Models (Multilevel)} 
+  \label{div.perc.mlm.models} 
+\begin{tabular}{@{\extracolsep{5pt}}lcc} 
+\\[-1.8ex]\hline 
+\hline \\[-1.8ex] 
+ & \multicolumn{2}{c}{\textit{Dependent variable:}} \\ 
+\cline{2-3} 
+\\[-1.8ex] & \multicolumn{2}{c}{Legislator Score} \\ 
+ & R & D \\ 
+\\[-1.8ex] & (1) & (2)\\ 
+\hline \\[-1.8ex] 
+ 80th Percentile & 0.10$^{***}$ & $-$0.18$^{***}$ \\ 
+  & (0.03) & (0.03) \\ 
+  & & \\ 
+ 20th Percentile & $-$0.08$^{**}$ & 0.10$^{***}$ \\ 
+  & (0.04) & (0.04) \\ 
+  & & \\ 
+ Citizen Ideology & 0.70$^{***}$ & 0.98$^{***}$ \\ 
+  & (0.09) & (0.07) \\ 
+  & & \\ 
+ Constant & 0.40$^{***}$ & $-$0.32$^{***}$ \\ 
+  & (0.09) & (0.09) \\ 
+  & & \\ 
+\hline \\[-1.8ex] 
+Observations & 1,760 & 1,520 \\ 
+Log Likelihood & $-$689.35 & $-$658.01 \\ 
+Akaike Inf. Crit. & 1,390.69 & 1,328.02 \\ 
+Bayesian Inf. Crit. & 1,423.53 & 1,359.98 \\ 
+\hline 
+\hline \\[-1.8ex] 
+\textit{Note:}  & \multicolumn{2}{r}{$^{*}$p$<$0.1; $^{**}$p$<$0.05; $^{***}$p$<$0.01} \\ 
+\end{tabular} 
+\end{table} 
+> 
+> 
+> ########################
+> ######################
+> ### Models for Congress
+> #######################
+> ########################
+> 
+> chamb<-"congress"
+> 
+> # important functions
+> 
+> 
+> 
+> load(file=paste("cd_uncertainty_140415.RData", sep=""))
+> 
+> congress<-read.dta(paste("congress_ideology_collapsed.dta", sep=""))
+> #lp<-read.csv(paste(loc,"LP_District_Heterogeneity_Estimates2.csv", sep=""))
+> congress_ideology<-read.csv(paste("cd_mrp_estimates.csv", sep=""))
+> 
+> #cd_uncertainty2<-merge(cd_uncertainty, lp, by.x="cd",by.y="cd", all.x=T)
+> cd_uncertainty2<-merge(cd_uncertainty, congress, by.x="cd",by.y="fips", all.x=T)
+> cd_uncertainty2<-merge(cd_uncertainty2, congress_ideology, by.x="cd",by.y="fips", all.x=T)
+> cd_uncertainty2$republican<-NA
+> cd_uncertainty2$republican[cd_uncertainty2$pid3==1]<-0
+> cd_uncertainty2$republican[cd_uncertainty2$pid3==3]<-1
+> cd_uncertainty2$presdem_2008<-as.numeric(as.vector(cd_uncertainty2$presdem_2008))
+Warning message:
+NAs introduced by coercion 
+> 
+> fit.h.voters=lm(dwnom1~republican* heterogeneity_citizens+ mrp_estimate*republican,data=cd_uncertainty2)
+> fit.u.voters=lm(dwnom1~republican* heterogeneity_voters+ mrp_estimate*republican,data=cd_uncertainty2)
+> fit.h.citizens=lm(dwnom1~republican* uncertainty_citizens+ mrp_estimate*republican,data=cd_uncertainty2)
+> fit.u.citizens=lm(dwnom1~republican* uncertainty_voters+ mrp_estimate*republican,data=cd_uncertainty2)
+> 
+> #subsetted
+> fit.h.citizens.dem=lm(dwnom1~heterogeneity_citizens+ mrp_estimate,data=cd_uncertainty2[cd_uncertainty2$pid3==1,])
+> fit.u.citizens.dem=lm(dwnom1~uncertainty_citizens+ mrp_estimate,data=cd_uncertainty2[cd_uncertainty2$pid3==1,])
+> fit.h.citizens.rep=lm(dwnom1~heterogeneity_citizens+ mrp_estimate,data=cd_uncertainty2[cd_uncertainty2$pid3==3,])
+> fit.u.citizens.rep=lm(dwnom1~uncertainty_citizens+ mrp_estimate,data=cd_uncertainty2[cd_uncertainty2$pid3==3,])
+> 
+> fit.h.citizens.dem.pres=lm(dwnom1~heterogeneity_citizens+ presdem_2008,data=cd_uncertainty2[cd_uncertainty2$pid3==1,])
+> fit.h.citizens.rep.pres=lm(dwnom1~heterogeneity_citizens+ presdem_2008,data=cd_uncertainty2[cd_uncertainty2$pid3==3,])
+> 
+> 
+> #stargazer(fit.h.voters,fit.h.citizens,fit.u.voters,fit.u.citizens, digits = 2, font.size="footnotesize",
+> #          title = "Legislator Models for Members of Congress. Unlike previous models, this model does not include Presidential Vote Share as a covariate.",
+> ##          covariate.labels = c("Republican","Heterogeneity Voters","Heterogeneity Citizens","Uncertainty Voters","Uncertainty Citizens","Median Citizen Ideology","Heterogeneity Voters * R","Heterogeneity Citizens * R","Uncertainty Voters * R","Uncertainty Citizens * R","Citizen Ideology * R"),
+>  #         dep.var.labels=c("Legislator Score"),  omit=c("Constant"), omit.stat = "f", label = "models", out = paths)
+>  
+> 
+> #######
+> ### Table D.1 Hetereogeneity - Congress Models (OLS)
+> ######
+>   paths = str_c("Tables/mlm_heterogeneity_",chamb,".tex")
+>   print(paths)
+[1] "Tables/mlm_heterogeneity_congress.tex"
+>  
+> stargazer(fit.h.citizens.rep,fit.h.citizens.rep.pres,fit.h.citizens.dem,fit.h.citizens.dem.pres, digits = 2, font.size="footnotesize",intercept.top=TRUE,intercept.bottom=FALSE,
++           title = "Hetereogeneity - Congress Models (OLS)",
++           covariate.labels = c("Intercept", "Hetereogeneity", "Mean Ideology"),
++           dep.var.labels=c("Legislator Score"),  omit.stat = "f", label = "models",
++             out = paths)
+
+% Table created by stargazer v.5.1 by Marek Hlavac, Harvard University. E-mail: hlavac at fas.harvard.edu
+% Date and time: Mon, Jul 03, 2017 - 03:28:04 PM
+\begin{table}[!htbp] \centering 
+  \caption{Hetereogeneity - Congress Models (OLS)} 
+  \label{models} 
+\footnotesize 
+\begin{tabular}{@{\extracolsep{5pt}}lcccc} 
+\\[-1.8ex]\hline 
+\hline \\[-1.8ex] 
+ & \multicolumn{4}{c}{\textit{Dependent variable:}} \\ 
+\cline{2-5} 
+\\[-1.8ex] & \multicolumn{4}{c}{Legislator Score} \\ 
+\\[-1.8ex] & (1) & (2) & (3) & (4)\\ 
+\hline \\[-1.8ex] 
+ Intercept & $-$0.23 & 0.16 & $-$0.06 & 0.45$^{***}$ \\ 
+  & (0.16) & (0.17) & (0.10) & (0.11) \\ 
+  & & & & \\ 
+ Hetereogeneity & 0.55$^{***}$ & 0.52$^{***}$ & $-$0.19$^{**}$ & $-$0.25$^{***}$ \\ 
+  & (0.12) & (0.13) & (0.08) & (0.07) \\ 
+  & & & & \\ 
+ Mean Ideology & 0.42$^{***}$ &  & 0.37$^{***}$ &  \\ 
+  & (0.04) &  & (0.02) &  \\ 
+  & & & & \\ 
+ presdem\_2008 &  & $-$0.64$^{***}$ &  & $-$0.79$^{***}$ \\ 
+  &  & (0.09) &  & (0.05) \\ 
+  & & & & \\ 
+\hline \\[-1.8ex] 
+Observations & 360 & 358 & 357 & 353 \\ 
+R$^{2}$ & 0.21 & 0.14 & 0.41 & 0.45 \\ 
+Adjusted R$^{2}$ & 0.21 & 0.14 & 0.41 & 0.45 \\ 
+Residual Std. Error & 0.15 (df = 357) & 0.15 (df = 355) & 0.12 (df = 354) & 0.11 (df = 350) \\ 
+\hline 
+\hline \\[-1.8ex] 
+\textit{Note:}  & \multicolumn{4}{r}{$^{*}$p$<$0.1; $^{**}$p$<$0.05; $^{***}$p$<$0.01} \\ 
+\end{tabular} 
+\end{table} 
+> 
+> 
+> #########
+> # Congress matching
+> #########
+> 
+> 
+> estimand = "ATE"
+> fit = bal = list()
+> 
+> 	cd_uncertainty2$matching = cd_uncertainty2$mrp_estimate
+> 
+>   legis.sub = subset(cd_uncertainty2,!is.na(dwnom1) & !is.na(republican)   & !is.na(matching) )
+>   
+>   
+>   match.fit = Match(Y=legis.sub$dwnom1, Tr=legis.sub$republican, X=legis.sub$matching, estimand = estimand)
+>   summary(match.fit)
+
+Estimate...  0.79341 
+AI SE......  0.01623 
+T-stat.....  48.886 
+p.val......  < 2.22e-16 
+
+Original number of observations..............  733 
+Original number of treated obs...............  370 
+Matched number of observations...............  733 
+Matched number of observations  (unweighted).  1157 
+
+>   #bal[["overall"]] = MatchBalance(pid ~ matching,  = legis.sub, match.out=match.fit, nboots = 10)
+>   
+>   # heterogeneity
+>   
+>   legis.hi.het.cit = subset(legis.sub,heterogeneity_citizens>median(heterogeneity_citizens,na.rm=T))
+>   legis.low.het.cit = subset(legis.sub,heterogeneity_citizens<=median(heterogeneity_citizens,na.rm=T))
+>   
+>   fit[["overall"]] = match.fit
+>   
+>   fit[["hi.het.cit"]] = Match(Y=legis.hi.het.cit$dwnom1, Tr=legis.hi.het.cit$republican, X=legis.hi.het.cit$matching, estimand = estimand)
+>   summary(fit[["hi.het.cit"]])
+
+Estimate...  0.84033 
+AI SE......  0.022231 
+T-stat.....  37.8 
+p.val......  < 2.22e-16 
+
+Original number of observations..............  358 
+Original number of treated obs...............  214 
+Matched number of observations...............  358 
+Matched number of observations  (unweighted).  455 
+
+>   #bal[["hi.het.cit"]] = MatchBalance(republican ~ matching,  = legis.hi.het.cit, match.out=fit[["hi.het.cit"]], nboots = 10)
+>   
+>   fit[["low.het.cit"]] = Match(Y=legis.low.het.cit$dwnom1, Tr=legis.low.het.cit$republican, X=legis.low.het.cit$matching, estimand = estimand)
+>   summary(fit[["low.het.cit"]])
+
+Estimate...  0.75164 
+AI SE......  0.024744 
+T-stat.....  30.377 
+p.val......  < 2.22e-16 
+
+Original number of observations..............  359 
+Original number of treated obs...............  146 
+Matched number of observations...............  359 
+Matched number of observations  (unweighted).  467 
+
+>   #bal[["low.het.cit"]] = MatchBalance(republican ~ matching,  = legis.low.het.cit, match.out=fit[["low.het.cit"]], nboots = 10)
+>   
+>   AIDD = c(sapply(fit,function(x){ x $ est}))
+>   SE = c(sapply(fit,function(x){ x $ se}))
+>   N.Obs = sapply(fit,function(x){ x $ orig.nobs})
+>   N.Rep = sapply(fit,function(x){ x $ orig.treated.nobs})
+>   
+>   match.results =  data.frame(N.Obs,N.Rep,AIDD,SE)
+>   rownames(match.results) = c("Overall","High Heterogeneity Citizens","Low Heterogeneity Citizens")
+>   print(match.results)
+                            N.Obs N.Rep      AIDD         SE
+Overall                       733   370 0.7934101 0.01622989
+High Heterogeneity Citizens   358   214 0.8403289 0.02223096
+Low Heterogeneity Citizens    359   146 0.7516407 0.02474390
+>   
+>   
+> #######
+> ### Table D.2: Matching Estimates of the AIDD (Average Treatment E↵ect)
+> ######
+>   library(xtable)
+>   sink(str_c("Tables/match_results_",chamb,".tex"))
+>   xtable(match.results, caption = "Matching Estimates of the AIDD (Average Treatment Effect)", label="matching.ests")
+>   sink()
+> 
+> 
+> #cd_uncertainty2[which(is.nan(cd_uncertainty2))] = NA
+> cd_uncertainty2[which(cd_uncertainty2==Inf)] = NA
+> 
+> # scatter by tercile
+> 
+> cd_uncertainty2$party<-NA
+> cd_uncertainty2$party[cd_uncertainty2$republican==0]<-"D"
+> cd_uncertainty2$party[cd_uncertainty2$republican==1]<-"R"
+> 
+> 
+> cols = c("blue4","red4")
+> if(greyscale) {cols = c("gray48","gray22")}
+> cuts = 3
+>   shapes = c("triangle","circle")
+> 
+>   cor.cat = cor.cat.rep = cor.cat.dem = list()
+>     
+>   # names conflict with arm package
+>   cd_uncertainty2$cat.het.cit = car::recode(as.integer(cut_number(cd_uncertainty2$heterogeneity_citizens, cuts)),"1='First';2='Second';3='Third'")
+>   
+>   cor.cat[["het.cit"]] = ddply(subset(cd_uncertainty2,!is.na(cat.het.cit)),"cat.het.cit",function(x) cor(x$dwnom1,x$mrp_estimate))[,2]
+>   cor.cat.rep[["het.cit"]] = ddply(subset(cd_uncertainty2,!is.na(cat.het.cit) & party == "R"),"cat.het.cit",function(x) cor(x$dwnom1,x$mrp_estimate))[,2]
+>   cor.cat.dem[["het.cit"]] = ddply(subset(cd_uncertainty2,!is.na(cat.het.cit) & party == "D"),"cat.het.cit",function(x) cor(x$dwnom1,x$mrp_estimate))[,2]
+>   
+>   ####
+>   ### Figure D.1 Scatterplot of Representative Ideology and District Opinion, by Heterogeneity Tercile
+>   ####
+>   p<-ggplot(subset(cd_uncertainty2,!is.na(cat.het.cit)), aes(x=mrp_estimate,y=dwnom1, color = party, shape=party))  
+>   p<- p+ stat_smooth(method = "lm", formula = y ~ poly(x, 2), size = 1) 
+>   p<- p+  geom_point(alpha=.25, size = 2) 
+>   p<- p+ scale_color_manual(values = cols) 
+>   p<- p+ theme_bw() 
+>   p<- p+ labs(list(y="Legislator Ideology",x="District Opinion",title="Heterogeneity",fill="")) 
+>   p<- p+ facet_wrap(~cat.het.cit) 
+> p<- p+ theme(legend.position="none")
+>   p
+Warning messages:
+1: Removed 1 rows containing missing values (stat_smooth). 
+2: Removed 1 rows containing missing values (geom_point). 
+3: Removed 1 rows containing missing values (geom_point). 
+>   ggs(str_c("Scatter/opinion_ideology_","congress"),subfolder=T,width=9,height=4,dropbox="state representation")
+[1] "Plots/pdf/Scatter/opinion_ideology_congress.pdf"
+[1] "Plots/pdf/Scatter/opinion_ideology_congress.pdf"
+Warning messages:
+1: Removed 1 rows containing missing values (stat_smooth). 
+2: Removed 1 rows containing missing values (geom_point). 
+3: Removed 1 rows containing missing values (geom_point). 
+4: Removed 1 rows containing missing values (stat_smooth). 
+5: Removed 1 rows containing missing values (geom_point). 
+6: Removed 1 rows containing missing values (geom_point). 
+>   
+> 
+> ########################
+> ######################
+> ### Geographic Distribution of Preferences
+> #######################
+> ########################
+> 
+> 
+> 
+> proc.time()
+   user  system elapsed 
+ 74.612   1.251  76.934 
