@@ -6,6 +6,11 @@ Common data re-used across articles in `data/`.
 
 ## Article Index
 
+### [Nov 30, 2023] Most People are Not Political or Generational Stereotypes
+
+-   Article [here](https://somewhatunlikely.substack.com/p/statistical-stereotypes)
+-   Data and code [here](/2023-11-30_statistical-stereotypes/)
+
 ### [Nov 1, 2023] Political Competition Doesn't Work
 
 -   Article [here](https://somewhatunlikely.substack.com/p/political-competition)
