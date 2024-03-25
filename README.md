@@ -6,6 +6,11 @@ Common data re-used across articles in `data/`.
 
 ## Article Index
 
+### [Mar 26, 2024] Wait, How Many Americans Eat How Much Pizza?
+
+- Article [here](https://somewhatunlikely.substack.com/p/alotta-pizza)
+- Data and code [here](/2024-03-26_alotta-pizza/)
+
 ### [Nov 30, 2023] Most People are Not Political or Generational Stereotypes
 
 -   Article [here](https://somewhatunlikely.substack.com/p/statistical-stereotypes)
