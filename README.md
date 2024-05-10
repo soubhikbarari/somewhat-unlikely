@@ -6,6 +6,11 @@ Common data re-used across articles in `data/`.
 
 ## Article Index
 
+### [May 13, 2024] 18 Takes on Media and Politics
+
+- Article [here](somewhatunlikely/p/columbia-media-and-politics)
+- Data and code [here](/2024-05-10_columbia-media-and-politics/)
+
 ### [Mar 26, 2024] Wait, How Many Americans Eat How Much Pizza?
 
 - Article [here](https://somewhatunlikely.substack.com/p/alotta-pizza)
