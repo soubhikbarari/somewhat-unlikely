@@ -6,6 +6,11 @@ Common data re-used across articles in `data/`.
 
 ## Article Index
 
+### [November 5, 2024] The Most Important Counties in the 2024 Election
+
+- Article [here](https://somewhatunlikely/p/most-important-2024-counties/)
+- Data and code [here](/2024-11-05_most-important-2024-counties/)
+
 ### [May 13, 2024] 18 Takes on Media and Politics
 
 - Article [here](https://somewhatunlikely/p/columbia-media-and-politics)
