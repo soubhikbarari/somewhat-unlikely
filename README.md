@@ -8,12 +8,12 @@ Common data re-used across articles in `data/`.
 
 ### [November 5, 2024] The Most Important Counties in the 2024 Election
 
-- Article [here](https://somewhatunlikely/p/most-important-2024-counties/)
+- Article [here](https://somewhatunlikely.substack.com/p/most-important-2024-counties/)
 - Data and code [here](/2024-11-05_most-important-2024-counties/)
 
 ### [May 13, 2024] 18 Takes on Media and Politics
 
-- Article [here](https://somewhatunlikely/p/columbia-media-and-politics)
+- Article [here](https://somewhatunlikely.substack.com/p/columbia-media-and-politics)
 - Data and code [here](/2024-05-10_columbia-media-and-politics/)
 
 ### [Mar 26, 2024] Wait, How Many Americans Eat How Much Pizza?
