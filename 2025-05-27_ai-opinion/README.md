@@ -9,3 +9,5 @@ A quick overview:
 - `prompts/02_exploratory_prompts.md`: has several lists of the prompts I asked next to 'explore' the synthesis that GPT generated. This really ran the gamut - both topline and subgroup questions, attitude-specific and general, 'summarization' and 'extrapolation'. I copied and pasted the outputs from these questions in `output/02.{X}_exploratory_outputs*`. You can see that my system-level prompt seems to  generate some helpful caveats and hedges in claims being made. Still, it may be the case that the model is hallucinating or overclaiming, which motivates the next step--
 
 - `outputs/03_verified_claims.md`: here, I took a sample of claims (either source-specific or aggregate across sources) generated and manually verified them by cross-checking with original sources. This is both a check of whether the model is *interpreting* information correctly and, more banally, whether the model is simply *extracting* the information (numbers, sources, question text) properly.
+
+I performed all of these prompts on ChatGPT's GPT-4o (default parameters) and Deep Research (default parameters) between Friday May 23rd and Monday May 26th.
