@@ -1,4 +1,4 @@
-# LLM Research Assistant: Methodology
+# My LLM Research Assistant: Methodology
 
 For this blog post, I wanted to see whether and how tools from ChatGPT (specifically the latest 4o model and Deep Research) could (a) provide me with high quality syntheses of primary research, and (b) help with 'exploratory' queries about the resulting knowledge. Proprietary vendor-based tools like ChatGPT are [inherently irreplicable](https://github.com/ArthurSpirling/LargeLanguageReplication/blob/main/explainer/explainer.md) -- still, I think there is value in researchers being *transparent* about their usage.
 
