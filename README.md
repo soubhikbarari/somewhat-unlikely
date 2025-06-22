@@ -1,6 +1,6 @@
 # Replication Codebase for *Somewhat Unlikely*
 
-Data and code to replicate the analyses in Soubhik Barari's blog [*Somewhat Unlikely*](https://somewhatunlikely.substack.com/).
+Data and code to replicate the analyses in the newsletter [*Somewhat Unlikely*](https://somewhatunlikely.substack.com/).
 
 Common data re-used across articles in `data/`.
 
