@@ -6,6 +6,11 @@ Common data re-used across articles in `data/`.
 
 ## Article Index
 
+### Jan 11, 2026. Who is Midwestern?
+
+- Article [here](https://somewhatunlikely.substack.com/p/the-midwest)
+- Data and code [here](/2026-01-11_the-midwest/)
+
 ### June 22, 2025. 6 Facts About the NYC Mayoral Election
 
 - Article [here](https://somewhatunlikely.substack.com/p/nyc-mayor)
