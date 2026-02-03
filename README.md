@@ -6,6 +6,11 @@ Common data re-used across articles in `data/`.
 
 ## Article Index
 
+### Feb 3, 2026. Secularism Predicts Greater Cross-National AI Usage
+
+- Article [here](https://somewhatunlikely.substack.com/p/values-ai-usage)
+- Data and code [here](/2026-02-06-values-ai-usage/)
+
 ### Jan 11, 2026. Who is Midwestern?
 
 - Article [here](https://somewhatunlikely.substack.com/p/the-midwest)
@@ -16,7 +21,7 @@ Common data re-used across articles in `data/`.
 - Article [here](https://somewhatunlikely.substack.com/p/nyc-mayor)
 - Data and code [here](/2025-06-22_nyc-mayor/)
 
-### May 27, 2025. The Most Important Counties in the 2024 Election
+### May 27, 2025. How the Public Feels About AI
 
 - Article [here](https://somewhatunlikely.substack.com/p/how-the-public-feels-about-ai)
 - Data and code [here](/2025-05-27_how-the-public-feels-about-ai/)
